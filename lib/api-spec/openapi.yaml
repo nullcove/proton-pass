@@ -3,20 +3,27 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Proton Pass API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: vaults
+    description: Vault management
+  - name: items
+    description: Vault item operations
+  - name: generator
+    description: Password generation utilities
+  - name: stats
+    description: Dashboard statistics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +31,376 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /vaults:
+    get:
+      operationId: listVaults
+      tags: [vaults]
+      summary: List all vaults
+      responses:
+        "200":
+          description: List of vaults
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vault"
+    post:
+      operationId: createVault
+      tags: [vaults]
+      summary: Create a new vault
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVaultBody"
+      responses:
+        "201":
+          description: Created vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vault"
+
+  /vaults/{vaultId}:
+    get:
+      operationId: getVault
+      tags: [vaults]
+      summary: Get a vault by ID
+      parameters:
+        - name: vaultId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vault"
+    patch:
+      operationId: updateVault
+      tags: [vaults]
+      summary: Update a vault
+      parameters:
+        - name: vaultId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVaultBody"
+      responses:
+        "200":
+          description: Updated vault
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vault"
+    delete:
+      operationId: deleteVault
+      tags: [vaults]
+      summary: Delete a vault
+      parameters:
+        - name: vaultId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items with optional filters
+      parameters:
+        - name: vaultId
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [login, card, note, identity, alias]
+        - name: trashed
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: pinned
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create a new vault item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateItemBody"
+      responses:
+        "201":
+          description: Created item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Get an item by ID
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+    patch:
+      operationId: updateItem
+      tags: [items]
+      summary: Update a vault item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateItemBody"
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      summary: Permanently delete an item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /items/{itemId}/trash:
+    post:
+      operationId: trashItem
+      tags: [items]
+      summary: Move an item to trash
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Trashed item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{itemId}/restore:
+    post:
+      operationId: restoreItem
+      tags: [items]
+      summary: Restore an item from trash
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Restored item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{itemId}/pin:
+    post:
+      operationId: pinItem
+      tags: [items]
+      summary: Pin/unpin an item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pinned:
+                  type: boolean
+              required: [pinned]
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /generator/password:
+    post:
+      operationId: generatePassword
+      tags: [generator]
+      summary: Generate a random password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordGeneratorConfig"
+      responses:
+        "200":
+          description: Generated password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedPassword"
+
+  /generator/passphrase:
+    post:
+      operationId: generatePassphrase
+      tags: [generator]
+      summary: Generate a passphrase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PassphraseGeneratorConfig"
+      responses:
+        "200":
+          description: Generated passphrase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedPassword"
+
+  /generator/score:
+    post:
+      operationId: scorePassword
+      tags: [generator]
+      summary: Score password strength
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+              required: [password]
+      responses:
+        "200":
+          description: Password strength score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordScore"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /stats/weak-passwords:
+    get:
+      operationId: getWeakPasswords
+      tags: [stats]
+      summary: Get items with weak passwords
+      responses:
+        "200":
+          description: Items with weak passwords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+  /stats/reused-passwords:
+    get:
+      operationId: getReusedPasswords
+      tags: [stats]
+      summary: Get items with reused passwords
+      responses:
+        "200":
+          description: Groups of items sharing passwords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Item"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +408,314 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Vault:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        itemCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, color, icon, itemCount, createdAt, updatedAt]
+
+    CreateVaultBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+      required: [name, color, icon]
+
+    UpdateVaultBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+
+    Item:
+      type: object
+      properties:
+        id:
+          type: integer
+        vaultId:
+          type: integer
+        type:
+          type: string
+          enum: [login, card, note, identity, alias]
+        title:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        urls:
+          type: array
+          items:
+            type: string
+        note:
+          type: string
+        cardholderName:
+          type: string
+        cardNumber:
+          type: string
+        expirationDate:
+          type: string
+        cvv:
+          type: string
+        cardType:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        aliasEmail:
+          type: string
+        totp:
+          type: string
+        pinned:
+          type: boolean
+        trashed:
+          type: boolean
+        passwordScore:
+          type: string
+          enum: [vulnerable, weak, strong, very_strong]
+        lastUsedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, vaultId, type, title, pinned, trashed, createdAt, updatedAt]
+
+    CreateItemBody:
+      type: object
+      properties:
+        vaultId:
+          type: integer
+        type:
+          type: string
+          enum: [login, card, note, identity, alias]
+        title:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        urls:
+          type: array
+          items:
+            type: string
+        note:
+          type: string
+        cardholderName:
+          type: string
+        cardNumber:
+          type: string
+        expirationDate:
+          type: string
+        cvv:
+          type: string
+        cardType:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        aliasEmail:
+          type: string
+        totp:
+          type: string
+      required: [vaultId, type, title]
+
+    UpdateItemBody:
+      type: object
+      properties:
+        title:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        urls:
+          type: array
+          items:
+            type: string
+        note:
+          type: string
+        cardholderName:
+          type: string
+        cardNumber:
+          type: string
+        expirationDate:
+          type: string
+        cvv:
+          type: string
+        cardType:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        aliasEmail:
+          type: string
+        totp:
+          type: string
+        vaultId:
+          type: integer
+
+    PasswordGeneratorConfig:
+      type: object
+      properties:
+        length:
+          type: integer
+          minimum: 4
+          maximum: 128
+        uppercase:
+          type: boolean
+        numbers:
+          type: boolean
+        symbols:
+          type: boolean
+      required: [length, uppercase, numbers, symbols]
+
+    PassphraseGeneratorConfig:
+      type: object
+      properties:
+        wordCount:
+          type: integer
+          minimum: 2
+          maximum: 10
+        separator:
+          type: string
+          enum: [hyphen, space, period, underscore, numbers]
+        capitalize:
+          type: boolean
+        includeNumbers:
+          type: boolean
+      required: [wordCount, separator, capitalize, includeNumbers]
+
+    GeneratedPassword:
+      type: object
+      properties:
+        password:
+          type: string
+        score:
+          type: string
+          enum: [vulnerable, weak, strong, very_strong]
+        entropy:
+          type: number
+      required: [password, score, entropy]
+
+    PasswordScore:
+      type: object
+      properties:
+        score:
+          type: string
+          enum: [vulnerable, weak, strong, very_strong]
+        entropy:
+          type: number
+        feedback:
+          type: string
+      required: [score, entropy, feedback]
+
+    DashboardStats:
+      type: object
+      properties:
+        totalItems:
+          type: integer
+        totalVaults:
+          type: integer
+        loginCount:
+          type: integer
+        cardCount:
+          type: integer
+        noteCount:
+          type: integer
+        identityCount:
+          type: integer
+        aliasCount:
+          type: integer
+        weakPasswordCount:
+          type: integer
+        reusedPasswordCount:
+          type: integer
+        strongPasswordCount:
+          type: integer
+        trashedCount:
+          type: integer
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+      required:
+        - totalItems
+        - totalVaults
+        - loginCount
+        - cardCount
+        - noteCount
+        - identityCount
+        - aliasCount
+        - weakPasswordCount
+        - reusedPasswordCount
+        - strongPasswordCount
+        - trashedCount
+        - recentActivity

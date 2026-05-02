@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Proton Pass"
+version = "1.0.0"
+id = "artifacts/proton-pass"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22220
+
+[services.development]
+run = "pnpm --filter @workspace/proton-pass run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/proton-pass", "run", "build" ]
+publicDir = "artifacts/proton-pass/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22220"
+BASE_PATH = "/"
