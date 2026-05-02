@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Proton Pass (Next.js)"
+version = "1.0.0"
+id = "artifacts/proton-pass-next"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19700
+
+[services.development]
+run = "pnpm --filter @workspace/proton-pass-next run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/proton-pass-next", "run", "build" ]
+publicDir = "artifacts/proton-pass-next/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19700"
+BASE_PATH = "/"
