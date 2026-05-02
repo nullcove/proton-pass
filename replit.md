@@ -1,51 +1,70 @@
-# Proton Pass Clone
+# Proton Pass — Replit Workspace
 
-A full-featured password manager web app inspired by Proton Pass. Dark purple theme, built as a Next.js 15 App Router app.
+## Overview
+A full-stack password manager monorepo. Contains two frontend apps and one shared backend API.
 
 ## Architecture
 
-**Monorepo** (pnpm workspaces):
-- `artifacts/proton-pass-next` — **Primary app**: Next.js 15 App Router (port 19700, preview at `/`)
-- `artifacts/proton-pass` — Legacy React + Vite frontend (port 22220) — kept for reference
-- `artifacts/api-server` — Express 5 REST API (port 8080) — kept for reference
-- `lib/db` — Drizzle ORM schema + migrations (`@workspace/db`)
+```
+artifacts/
+  api-server/           — Express + Drizzle ORM backend (port 8080, serves /api)
+  proton-pass/          — React + Vite frontend (port 3002)
+  proton-pass-next/     — Next.js 15 frontend (port 3001, serves /)
+  mockup-sandbox/       — Vite mockup sandbox
+lib/
+  db/                   — PostgreSQL schema (vaults, items tables via Drizzle)
+  api-spec/             — OpenAPI spec + codegen config
+  api-zod/              — Generated Zod schemas
+  api-client-react/     — Generated React Query hooks
+```
 
-## Features
+## Backend (api-server)
 
-- **Dashboard** — Security score, item counts by type, vault list, recent activity
-- **All Items / Vault view** — Search, filter by type, pinned items, item detail panel
-- **Item types**: Login (w/ password scoring), Credit Card, Secure Note, Identity, Email Alias
-- **Password Generator** — Password (length/chars) + Passphrase (words/separator/caps)
-- **Security Center** — Weak password detection, reused password groups, security grade
-- **Trash** — Soft-delete, restore, permanent delete
+- **Framework**: Express + pino logging
+- **Database**: PostgreSQL via Drizzle ORM
+- **Routes**: `/api/healthz`, `/api/vaults`, `/api/items`, `/api/stats`, `/api/generator`
 
-## Stack (Next.js version)
+### API Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/healthz | Health check |
+| GET/POST | /api/vaults | List/create vaults |
+| GET/PATCH/DELETE | /api/vaults/:id | Get/update/delete vault |
+| GET/POST | /api/items | List/create items (supports ?vaultId, ?type, ?trashed, ?search, ?pinned) |
+| GET/PATCH/DELETE | /api/items/:id | Get/update/delete item |
+| GET | /api/stats | Dashboard stats |
+| GET | /api/stats/weak-passwords | Logins with weak/vulnerable passwords |
+| GET | /api/stats/reused-passwords | Grouped reused passwords |
+| POST | /api/generator/password | Generate password |
+| POST | /api/generator/passphrase | Generate passphrase |
+| POST | /api/generator/score | Score a password |
 
-- **Framework**: Next.js 15 App Router (`use client` pages, API routes under `src/app/api/`)
-- **UI**: TailwindCSS 4, shadcn/ui components, Radix UI primitives, Lucide icons
-- **Data**: React Query v5 (@tanstack/react-query), custom hooks in `src/lib/api-client.ts`
-- **Database**: Drizzle ORM + PostgreSQL via `@workspace/db`, singleton pool in `src/lib/db.ts`
+## Insforge Backend
+- **Base URL**: `https://7mr7cxjn.ap-southeast.insforge.app`
+- **API Key**: stored in `INSFORGE_API_KEY` env var
+- **SDK**: `@insforge/sdk` used in `proton-pass-next/src/lib/insforge.ts`
+- **Connection**: proton-pass-next's Next.js API routes proxy to Express api-server (localhost:8080)
+  - This avoids the need for `INSFORGE_ANON_KEY` which is not available via API
 
-## Theme
+## Database Schema
+- **vaults**: id, name, description, color, icon, created_at, updated_at
+- **items**: id, vault_id, type, title, username, password, urls (JSON), note, cardholder_name, card_number, expiration_date, cvv, card_type, first_name, last_name, email, phone, address, city, country, alias_email, totp, pinned, trashed, password_score, last_used_at, created_at, updated_at
 
-Deep purple-dark background (`hsl(246 23% 9%)`), violet primary (`hsl(258 100% 66%)`). CSS custom properties in `artifacts/proton-pass-next/src/app/globals.css`.
+## Running the Apps
+- **API Server**: `pnpm --filter @workspace/api-server run dev`
+- **Proton Pass Next.js**: `PORT=3001 pnpm --filter @workspace/proton-pass-next run dev`
+- **Proton Pass React**: `PORT=3002 BASE_PATH=/ pnpm --filter @workspace/proton-pass run dev`
+- **DB Migration**: `pnpm --filter @workspace/db run push`
 
-## Key Files (Next.js app)
+## GitHub
+- **Repo**: https://github.com/nullcove/proton-pass
+- Code synced via GitHub REST API (PAT-based push)
 
-- `artifacts/proton-pass-next/src/app/layout.tsx` — Root layout with Sidebar
-- `artifacts/proton-pass-next/src/app/page.tsx` — Dashboard
-- `artifacts/proton-pass-next/src/app/vault/page.tsx` — All Items
-- `artifacts/proton-pass-next/src/app/vault/[vaultId]/page.tsx` — Per-vault view
-- `artifacts/proton-pass-next/src/app/generator/page.tsx` — Password Generator
-- `artifacts/proton-pass-next/src/app/security/page.tsx` — Security Center
-- `artifacts/proton-pass-next/src/app/trash/page.tsx` — Trash
-- `artifacts/proton-pass-next/src/app/api/` — Next.js API routes (vaults, items, stats, generator)
-- `artifacts/proton-pass-next/src/components/Layout.tsx` — Sidebar navigation
-- `artifacts/proton-pass-next/src/lib/api-client.ts` — React Query hooks
-- `artifacts/proton-pass-next/src/lib/db.ts` — Drizzle + pg singleton
-
-## Database
-
-PostgreSQL via `DATABASE_URL`. Seeded with 3 vaults (Personal, Work, Finance) and 11 items.
-
-Run migrations: `pnpm --filter @workspace/db run push`
+## Environment Variables
+| Variable | Purpose |
+|----------|---------|
+| INSFORGE_BASE_URL | Insforge project base URL |
+| INSFORGE_API_KEY | Insforge admin API key |
+| INSFORGE_ANON_KEY | Insforge anon key (not required — routes proxy to Express) |
+| SESSION_SECRET | Session encryption secret |
+| DATABASE_URL | PostgreSQL connection string (auto-set by Replit) |
