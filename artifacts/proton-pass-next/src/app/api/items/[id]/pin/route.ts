@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, itemsTable } from "@/lib/db";
-import { eq } from "drizzle-orm";
-
-function parseUrls(u: string | null | undefined) {
-  if (!u) return [];
-  try { return JSON.parse(u); } catch { return []; }
-}
+import { getAdminClient, formatItem } from "@/lib/insforge";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
     const { pinned } = await req.json();
-    const [item] = await db
-      .update(itemsTable)
-      .set({ pinned, updatedAt: new Date() })
-      .where(eq(itemsTable.id, Number(id)))
-      .returning();
+    const { data, error } = await client.database
+      .from("items")
+      .update({ pinned, updated_at: new Date().toISOString() })
+      .eq("id", Number(id))
+      .select();
+    if (error) throw error;
+    const item = (data ?? [])[0];
     if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ ...item, urls: parseUrls(item.urls) });
+    return NextResponse.json(formatItem(item));
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

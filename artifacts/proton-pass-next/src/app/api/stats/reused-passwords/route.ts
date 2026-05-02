@@ -1,29 +1,28 @@
 import { NextResponse } from "next/server";
-import { getDb, itemsTable } from "@/lib/db";
-import { and, eq } from "drizzle-orm";
-
-function parseUrls(u: string | null | undefined) {
-  if (!u) return [];
-  try { return JSON.parse(u); } catch { return []; }
-}
+import { getAdminClient, formatItem } from "@/lib/insforge";
 
 export async function GET() {
   try {
-    const db = getDb();
-    const loginItems = await db
-      .select()
-      .from(itemsTable)
-      .where(and(eq(itemsTable.trashed, false), eq(itemsTable.type, "login")));
-    const passwordMap = new Map<string, typeof loginItems>();
+    const client = getAdminClient();
+    const { data, error } = await client.database
+      .from("items")
+      .select("*")
+      .eq("trashed", false)
+      .eq("type", "login");
+    if (error) throw error;
+
+    const loginItems = data ?? [];
+    const passwordMap = new Map<string, Record<string, unknown>[]>();
     for (const item of loginItems) {
-      if (!item.password) continue;
-      const existing = passwordMap.get(item.password) ?? [];
-      existing.push(item);
-      passwordMap.set(item.password, existing);
+      const pw = (item as Record<string, unknown>).password as string;
+      if (!pw) continue;
+      const existing = passwordMap.get(pw) ?? [];
+      existing.push(item as Record<string, unknown>);
+      passwordMap.set(pw, existing);
     }
     const reusedGroups = Array.from(passwordMap.values())
       .filter((g) => g.length > 1)
-      .map((g) => g.map((i) => ({ ...i, urls: parseUrls(i.urls) })));
+      .map((g) => g.map(formatItem));
     return NextResponse.json(reusedGroups);
   } catch (e) {
     console.error(e);

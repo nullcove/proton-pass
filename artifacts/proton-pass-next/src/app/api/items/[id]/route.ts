@@ -1,34 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, itemsTable } from "@/lib/db";
-import { eq } from "drizzle-orm";
-
-function parseUrls(urls: string | null | undefined): string[] {
-  if (!urls) return [];
-  try { return JSON.parse(urls); } catch { return []; }
-}
-
-function formatItem(item: typeof itemsTable.$inferSelect) {
-  return { ...item, urls: parseUrls(item.urls) };
-}
-
-function scorePassword(password: string): string {
-  const len = password.length;
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSymbol = /[^A-Za-z0-9]/.test(password);
-  const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
-  if (len < 8 || variety < 2) return "vulnerable";
-  if (len < 12 || variety < 3) return "weak";
-  if (len < 16 || variety < 4) return "strong";
-  return "very_strong";
-}
+import { getAdminClient, formatItem, scorePassword } from "@/lib/insforge";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
-    const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, Number(id)));
+    const { data, error } = await client.database
+      .from("items")
+      .select("*")
+      .eq("id", Number(id));
+    if (error) throw error;
+    const item = (data ?? [])[0];
     if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(formatItem(item));
   } catch (e) {
@@ -39,20 +21,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
     const body = await req.json();
-    const passwordScore =
-      body.password ? scorePassword(body.password) : undefined;
-    const urlsJson = Array.isArray(body.urls) ? JSON.stringify(body.urls) : undefined;
-    const updateData: Record<string, unknown> = { ...body, updatedAt: new Date() };
-    if (urlsJson !== undefined) updateData.urls = urlsJson;
-    if (passwordScore !== undefined) updateData.passwordScore = passwordScore;
-    const [item] = await db
-      .update(itemsTable)
-      .set(updateData)
-      .where(eq(itemsTable.id, Number(id)))
-      .returning();
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.username !== undefined) updateData.username = body.username;
+    if (body.password !== undefined) {
+      updateData.password = body.password;
+      updateData.password_score = scorePassword(body.password);
+    }
+    if (body.urls !== undefined) updateData.urls = Array.isArray(body.urls) ? JSON.stringify(body.urls) : body.urls;
+    if (body.note !== undefined) updateData.note = body.note;
+    if (body.pinned !== undefined) updateData.pinned = body.pinned;
+    if (body.vault_id !== undefined) updateData.vault_id = body.vault_id;
+
+    const { data, error } = await client.database
+      .from("items")
+      .update(updateData)
+      .eq("id", Number(id))
+      .select();
+    if (error) throw error;
+    const item = (data ?? [])[0];
     if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(formatItem(item));
   } catch (e) {
@@ -63,9 +53,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
-    await db.delete(itemsTable).where(eq(itemsTable.id, Number(id)));
+    const { error } = await client.database
+      .from("items")
+      .delete()
+      .eq("id", Number(id));
+    if (error) throw error;
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     console.error(e);

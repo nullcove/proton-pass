@@ -1,32 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, itemsTable } from "@/lib/db";
-import { eq, and, ilike, sql } from "drizzle-orm";
-
-function parseUrls(urls: string | null | undefined): string[] {
-  if (!urls) return [];
-  try { return JSON.parse(urls); } catch { return []; }
-}
-
-function formatItem(item: typeof itemsTable.$inferSelect) {
-  return { ...item, urls: parseUrls(item.urls) };
-}
-
-function scorePassword(password: string): string {
-  const len = password.length;
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSymbol = /[^A-Za-z0-9]/.test(password);
-  const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
-  if (len < 8 || variety < 2) return "vulnerable";
-  if (len < 12 || variety < 3) return "weak";
-  if (len < 16 || variety < 4) return "strong";
-  return "very_strong";
-}
+import { getAdminClient, formatItem, scorePassword } from "@/lib/insforge";
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { searchParams } = req.nextUrl;
     const vaultId = searchParams.get("vaultId");
     const type = searchParams.get("type");
@@ -34,19 +11,16 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const pinned = searchParams.get("pinned");
 
-    const conditions = [];
-    if (vaultId) conditions.push(eq(itemsTable.vaultId, Number(vaultId)));
-    if (type) conditions.push(eq(itemsTable.type, type));
-    if (trashed !== null) conditions.push(eq(itemsTable.trashed, trashed === "true"));
-    if (search) conditions.push(ilike(itemsTable.title, `%${search}%`));
-    if (pinned !== null) conditions.push(eq(itemsTable.pinned, pinned === "true"));
+    let query = client.database.from("items").select("*");
+    if (vaultId) query = query.eq("vault_id", Number(vaultId));
+    if (type) query = query.eq("type", type);
+    if (trashed !== null) query = query.eq("trashed", trashed === "true");
+    if (search) query = query.ilike("title", `%${search}%`);
+    if (pinned !== null) query = query.eq("pinned", pinned === "true");
 
-    const rows =
-      conditions.length > 0
-        ? await db.select().from(itemsTable).where(and(...conditions))
-        : await db.select().from(itemsTable);
-
-    return NextResponse.json(rows.map(formatItem));
+    const { data, error } = await query;
+    if (error) throw error;
+    return NextResponse.json((data ?? []).map(formatItem));
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -55,15 +29,28 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const body = await req.json();
     const passwordScore =
-      body.type === "login" && body.password ? scorePassword(body.password) : undefined;
+      body.type === "login" && body.password ? scorePassword(body.password) : null;
     const urlsJson = Array.isArray(body.urls) ? JSON.stringify(body.urls) : null;
-    const [item] = await db
-      .insert(itemsTable)
-      .values({ ...body, urls: urlsJson, passwordScore })
-      .returning();
+    const { data, error } = await client.database
+      .from("items")
+      .insert([{
+        vault_id: body.vaultId ?? body.vault_id,
+        type: body.type ?? "login",
+        title: body.title,
+        username: body.username ?? null,
+        password: body.password ?? null,
+        urls: urlsJson,
+        note: body.note ?? null,
+        pinned: body.pinned ?? false,
+        trashed: false,
+        password_score: passwordScore,
+      }])
+      .select();
+    if (error) throw error;
+    const item = (data ?? [])[0];
     return NextResponse.json(formatItem(item), { status: 201 });
   } catch (e) {
     console.error(e);

@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, vaultsTable, itemsTable } from "@/lib/db";
-import { eq, sql } from "drizzle-orm";
+import { getAdminClient } from "@/lib/insforge";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
-    const [vault] = await db.select().from(vaultsTable).where(eq(vaultsTable.id, Number(id)));
+    const { data: vaults, error } = await client.database
+      .from("vaults")
+      .select("*")
+      .eq("id", Number(id));
+    if (error) throw error;
+    const vault = (vaults ?? [])[0];
     if (!vault) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const [cnt] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(itemsTable)
-      .where(eq(itemsTable.vaultId, vault.id));
-    return NextResponse.json({ ...vault, itemCount: cnt?.count ?? 0 });
+
+    const { data: items } = await client.database
+      .from("items")
+      .select("id")
+      .eq("vault_id", Number(id));
+    return NextResponse.json({ ...vault, itemCount: (items ?? []).length });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -21,20 +26,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
     const body = await req.json();
-    const [vault] = await db
-      .update(vaultsTable)
-      .set({ ...body, updatedAt: new Date() })
-      .where(eq(vaultsTable.id, Number(id)))
-      .returning();
+    const { data, error } = await client.database
+      .from("vaults")
+      .update({ ...body, updated_at: new Date().toISOString() })
+      .eq("id", Number(id))
+      .select();
+    if (error) throw error;
+    const vault = (data ?? [])[0];
     if (!vault) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const [cnt] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(itemsTable)
-      .where(eq(itemsTable.vaultId, vault.id));
-    return NextResponse.json({ ...vault, itemCount: cnt?.count ?? 0 });
+
+    const { data: items } = await client.database
+      .from("items")
+      .select("id")
+      .eq("vault_id", Number(id));
+    return NextResponse.json({ ...vault, itemCount: (items ?? []).length });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -43,9 +51,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const db = getDb();
+    const client = getAdminClient();
     const { id } = await params;
-    await db.delete(vaultsTable).where(eq(vaultsTable.id, Number(id)));
+    const { error } = await client.database
+      .from("vaults")
+      .delete()
+      .eq("id", Number(id));
+    if (error) throw error;
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     console.error(e);
