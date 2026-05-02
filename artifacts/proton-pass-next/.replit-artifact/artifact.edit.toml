@@ -1,0 +1,21 @@
+kind = "web"
+previewPath = "/"
+title = "Proton Pass (Next.js)"
+version = "1.0.0"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19700
+
+[services.development]
+run = "pnpm --filter @workspace/proton-pass-next run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/proton-pass-next", "run", "build" ]
+run = ["node", "artifacts/proton-pass-next/.next/standalone/server.js"]
+
+[services.env]
+PORT = "19700"
+BASE_PATH = "/"
